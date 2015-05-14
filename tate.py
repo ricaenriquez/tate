@@ -1,7 +1,6 @@
 __author__ = 'Rica Enriquez'
 
 from pandas import *
-options.mode.chained_assignment = None
 import matplotlib
 matplotlib.use('TkAgg')
 import numpy as np
@@ -10,12 +9,17 @@ import matplotlib.pyplot as plt
 sns.set_style("white")
 from incf.countryutils import transformations
 
+# Suppress SettingWithCopyWarning
+options.mode.chained_assignment = None
+
 #Open artists data
 df_artists = read_csv('artist_data.csv', skipinitialspace=True, low_memory=False)
 
 # Columns to use in artwork data set
 art_vars = ['artist', 'artistRole', 'artistId', 'title', 'dateText', 'medium', 'creditLine', 'year', 'acquisitionYear',
             'width', 'height', 'units']
+
+#Open artwork data
 df_artwork = read_csv('artwork_data.csv', skipinitialspace=True, na_values=['no date'], usecols=art_vars, low_memory=False)
 
 # Only use the pieces of work with a credit line.
@@ -23,6 +27,18 @@ df_art_credit = df_artwork[df_artwork.creditLine.notnull()]
 
 # Divide the acquisition methods into keywords that are usually the first word
 df_art_credit['acquisition'] = df_art_credit.apply(lambda row: (row.creditLine.split()[0].lower()),axis=1)
+
+# Meaning of acquisition methods:
+# presented - shown, but not owned by the museum
+# purchased - bought directly by the museum
+# bequeathed - given to the museum as part of a will
+# accepted - given to the museum in exchange for tax
+# commissioned - by the museum
+# transferred - from another museum
+# gift - from someone
+# exchanged - from an artist
+# partial - purchase/gift
+# uncovered - after remounting
 
 # Clean up some pieces that have keywords that are the same as another category
 df_art_credit.acquisition = df_art_credit.acquisition.replace({'given': 'gift', 'offered': 'accepted',
@@ -38,24 +54,12 @@ def find_acquisition(entry):
 df_art_credit.acquisition[df_art_credit['acquisition'] == 'artist'] = \
     df_art_credit[df_art_credit['acquisition'] == 'artist'].apply(lambda row: (find_acquisition(row.creditLine)), axis=1)
 
-# Meaning of acquisition methods:
-# presented - shown, but not owned by the museum
-# purchased - bought directly by the museum
-# bequeathed - given to the museum as part of a will
-# accepted - given to the museum in exchange for tax
-# commissioned - by the museum
-# transferred - from another museum
-# gift - from someone
-# exchanged - from an artist
-# partial - purchase/gift
-# uncovered - after remounting
-
 # Will look at time trends, so take out nulls/clean up - look at year created and acquisiton year
 df_year_known = df_art_credit[df_art_credit.year.notnull()]
 df_year_known.year = df_year_known.year.replace({'c.1997-9': '1998'})
 df_year_known.year = df_year_known.year.astype(np.int64)
 
-# Just look at these categories since most pieces are acquired through these methods
+# Just look at these categories for now since most pieces are acquired through these methods
 df_year_known_small = df_year_known[(df_year_known.acquisition == 'accepted') |
                                     (df_year_known.acquisition == 'bequeathed') |
                                     (df_year_known.acquisition == 'presented') |
@@ -278,16 +282,20 @@ def find_continent(country):
         return transformations.cn_to_ctn(country)
 
 df_artists[df_artists.placeOfBirth.isnull()] = 'Unknown'
+# Make new columns of country and continents from placeOfBirth Data
 df_artists['country'] = df_artists.apply(lambda x: (replace_country(x.placeOfBirth)), axis=1)
 df_artists['continent'] = df_artists.apply(lambda x: (find_continent(x.country)), axis=1)
 
 def get_continent(artistId):
         return np.array_str(df_artists['continent'][df_artists['id'] == artistId].values)[2:-2]
 
-# Let's focus on pieces not in Europe after 1950!
+# Let's focus on pieces after 1950!
 df_post_1950 = df_year_known_small[(df_year_known_small.year >= 1950)]
+
+# Match the continent each artist came from with each piece of artwork
 df_post_1950['Artist Birth Country'] = df_post_1950.apply(lambda x: (get_continent(x.artistId)), axis=1)
 
+# Let's focus on pieces not in Europe!
 df_post_1950_cut = df_post_1950[(df_post_1950['Artist Birth Country'] != 'Europe')]
 df_post_1950_cut["Year Artwork 'Completed'"] = df_post_1950_cut['year']
 
