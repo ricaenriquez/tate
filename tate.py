@@ -16,8 +16,7 @@ options.mode.chained_assignment = None
 df_artists = read_csv('artist_data.csv', skipinitialspace=True, low_memory=False)
 
 # Columns to use in artwork data set
-art_vars = ['artist', 'artistRole', 'artistId', 'title', 'dateText', 'medium', 'creditLine', 'year', 'acquisitionYear',
-            'width', 'height', 'units']
+art_vars = ['artist', 'artistId', 'title', 'creditLine', 'year', 'acquisitionYear']
 
 #Open artwork data
 df_artwork = read_csv('artwork_data.csv', skipinitialspace=True, na_values=['no date'], usecols=art_vars, low_memory=False)
@@ -282,6 +281,7 @@ def find_continent(country):
         return transformations.cn_to_ctn(country)
 
 df_artists[df_artists.placeOfBirth.isnull()] = 'Unknown'
+
 # Make new columns of country and continents from placeOfBirth Data
 df_artists['country'] = df_artists.apply(lambda x: (replace_country(x.placeOfBirth)), axis=1)
 df_artists['continent'] = df_artists.apply(lambda x: (find_continent(x.country)), axis=1)
@@ -293,14 +293,36 @@ def get_continent(artistId):
 df_post_1950 = df_year_known_small[(df_year_known_small.year >= 1950)]
 
 # Match the continent each artist came from with each piece of artwork
-df_post_1950['Artist Birth Country'] = df_post_1950.apply(lambda x: (get_continent(x.artistId)), axis=1)
+df_post_1950['Artist Birth Continent'] = df_post_1950.apply(lambda x: (get_continent(x.artistId)), axis=1)
 
 # Let's focus on pieces not in Europe!
-df_post_1950_cut = df_post_1950[(df_post_1950['Artist Birth Country'] != 'Europe')]
+df_post_1950_cut = df_post_1950[(df_post_1950['Artist Birth Continent'] != 'Europe')]
 df_post_1950_cut["Year Artwork 'Completed'"] = df_post_1950_cut['year']
 
-grouped = DataFrame({'pieces': df_post_1950_cut.groupby(["Year Artwork 'Completed'", 'Artist Birth Country']).size()}).reset_index()
-grouped_rect = grouped.pivot('Artist Birth Country', "Year Artwork 'Completed'", 'pieces')
+grouped = DataFrame({'pieces': df_post_1950_cut.groupby(["Year Artwork 'Completed'", 'Artist Birth Continent']).size()}).reset_index()
+grouped_rect = grouped.pivot('Artist Birth Continent', "Year Artwork 'Completed'", 'pieces')
 grouped_rect = grouped_rect.fillna(0)
 sns.heatmap(grouped_rect, yticklabels=['Unknown', 'Africa', 'Asia', 'North America', 'Oceania', 'South America'])
 plt.show()
+
+# Look to see which artists were hot in Asia and South America
+SA_artists = df_post_1950_cut[(df_post_1950_cut['Artist Birth Continent'] == 'South America') &
+                     (df_post_1950_cut["Year Artwork 'Completed'"] == 1976)].artist.unique()
+
+print "South American Artists with work completed in 1976, number of pieces, and [acquisition year]"
+for artist in SA_artists:
+    print artist, len(df_post_1950_cut[(df_post_1950_cut['artist'] == artist) &
+                     (df_post_1950_cut["Year Artwork 'Completed'"] == 1976)]),\
+        df_post_1950_cut[(df_post_1950_cut['artist'] == artist) &
+                         (df_post_1950_cut["Year Artwork 'Completed'"] == 1976)]['acquisitionYear'].unique()
+
+
+Asian_artists = df_post_1950_cut[(df_post_1950_cut['Artist Birth Continent'] == 'Asia') &
+                                 (df_post_1950_cut["Year Artwork 'Completed'"] == 2007)].artist.unique()
+
+print "Asian Artists with work completed in 2007, number of pieces, and [acquisition year]"
+for artist in Asian_artists:
+        print artist, len(df_post_1950_cut[(df_post_1950_cut['artist'] == artist) &
+                     (df_post_1950_cut["Year Artwork 'Completed'"] == 2007)]),\
+        df_post_1950_cut[(df_post_1950_cut['artist'] == artist) &
+                         (df_post_1950_cut["Year Artwork 'Completed'"] == 2007)]['acquisitionYear'].unique()
